@@ -39,10 +39,10 @@
  */
 
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-  typeof define === 'function' && define.amd ? define(factory) :
-  (global.VueIntl = factory());
-}(this, (function () { 'use strict';
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+  typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  (factory((global.VueIntl = global.VueIntl || {})));
+}(this, (function (exports) { 'use strict';
 
 /*
 Copyright (c) 2014, Yahoo! Inc. All rights reserved.
@@ -3401,6 +3401,26 @@ function filterProps(props, whitelist) {
     }, {});
 }
 
+function getMessage(messages, messagePath) {
+    var message = void 0;
+
+    try {
+        var deepMessage = messagePath.split('.').reduce(function (namespace, prop) {
+            return namespace && namespace[prop];
+        }, messages);
+
+        if (typeof deepMessage !== "string") {
+            throw new Error("Path not found");
+        }
+
+        message = deepMessage;
+    } catch (e) {
+        message = messages[messagePath]; // previous dot-namespaced behavior
+    }
+
+    return message;
+}
+
 /*
  * This file is a modified version of that used in the react-intl package.
  * https://github.com/yahoo/react-intl
@@ -3610,7 +3630,7 @@ function formatMessage(config, state) {
         throw new TypeError('[Vue Intl] An `id` must be provided to format a message.');
     }
 
-    var message = messages && messages[id];
+    var message = messages && getMessage(messages, id);
     var hasValues = Object.keys(values).length > 0;
 
     // Avoid expensive message formatting for simple messages without values. In
@@ -3689,6 +3709,50 @@ var formatMethods = Object.freeze({
 	formatHTMLMessage: formatHTMLMessage
 });
 
+var format = function format(ctx, values) {
+    return ctx.parent.$formatMessage(ctx.props, values);
+};
+var placeholder = function placeholder(name) {
+    return '@\0@\0' + name + '\0@\0@';
+};
+var placeholderRegex = /@\0@\0(.*?)\0@\0@/g;
+
+var FormattedMessage = {
+    functional: true,
+
+    props: {
+        id: { type: String, required: true },
+        defaultMessage: String,
+        values: Object,
+        tagName: { type: String, 'default': 'span' }
+    },
+
+    render: function render(h, ctx) {
+        var slots = ctx.slots();
+        var slotNames = Object.keys(slots);
+        if (slotNames.length === 0) {
+            return h(ctx.props.tagName, ctx.data, format(ctx, ctx.props.values));
+        }
+
+        var values = Object.assign({}, ctx.props.values);
+        slotNames.forEach(function (slot) {
+            values[slot] = placeholder(slot);
+        });
+
+        var message = format(ctx, values);
+
+        var match = void 0;
+        var pos = 0;
+        var children = [];
+        while ((match = placeholderRegex.exec(message)) !== null) {
+            children.push(message.substring(pos, match.index), slots[match[1]]);
+            pos = match.index + match[0].length;
+        }
+        children.push(message.substring(pos));
+        return h(ctx.props.tagName, ctx.data, children);
+    }
+};
+
 var VueIntl = {
     install: function install(Vue) {
         var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
@@ -3746,7 +3810,10 @@ var VueIntl = {
     }
 };
 
-return VueIntl;
+exports.FormattedMessage = FormattedMessage;
+exports['default'] = VueIntl;
+
+Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
 //# sourceMappingURL=vue-intl.js.map
