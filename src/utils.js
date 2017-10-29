@@ -33,3 +33,23 @@ export function filterProps(props, whitelist, defaults = {}) {
         return filtered;
     }, {});
 }
+
+export function getMessage(messages, messagePath) {
+    let message;
+
+    try {
+        const deepMessage = messagePath.split('.').reduce((namespace, prop) => {
+            return namespace && namespace[prop];
+        }, messages);
+
+        if (typeof deepMessage !== "string") {
+            throw new Error("Path not found");
+        }
+
+        message = deepMessage;
+    } catch(e) {
+        message = messages[messagePath]; // previous dot-namespaced behavior
+    }
+
+    return message;
+}
